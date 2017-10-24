@@ -19,7 +19,7 @@ class FCN16s(nn.Module):
             md5='991ea45d30d632a01e5ec48002cac617',
         )
 
-    def __init__(self, n_class=21):
+    def __init__(self, n_class=14):
         super(FCN16s, self).__init__()
         # conv1
         self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)

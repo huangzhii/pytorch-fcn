@@ -4,6 +4,7 @@ import os
 import os.path as osp
 import shutil
 
+import torch.backends.cudnn as cudnn
 import fcn
 import numpy as np
 import pytz
@@ -12,26 +13,76 @@ import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
 import tqdm
+import logging
 
 import torchfcn
 
+def happyprint(string, obj):
+    print(string, obj)
+    return
 
-def cross_entropy2d(input, target, weight=None, size_average=True):
+def cross_entropy3d(input, target, weight=None, size_average=True):
     # input: (n, c, h, w), target: (n, h, w)
-    n, c, h, w = input.size()
-    # log_p: (n, c, h, w)
+    # print(input[0])
+    happyprint("input: ", input.size())
+    happyprint("target: ", target.size())
+    n, c, h, w, d = input.size()
+    input = input.contiguous().view(-1, c, h, w*d)
+    happyprint("input -- now: ", input.size())
+    # n, c, h, w, d: batch size, classes, height, width, depth
     log_p = F.log_softmax(input)
+    # happyprint("target: ", target.size())
     # log_p: (n*h*w, c)
+    # print(target.size()) # shape:1x376x1241x3
+    # n:1 c:14 h: 376 w: 1241
+    
+    happyprint("log_p1: ", log_p.size())
     log_p = log_p.transpose(1, 2).transpose(2, 3).contiguous().view(-1, c)
-    log_p = log_p[target.view(n, h, w, 1).repeat(1, 1, 1, c) >= 0]
-    log_p = log_p.view(-1, c)
+    happyprint("log_p2: ", log_p.size())
+    # log_p = log_p[target.view(n, h, w, d, 1).repeat(1, 1, 1, 1, c) >= 0]
+    happyprint("log_p3: ", log_p.size())
+    # log_p = log_p.view(-1, c)
+    happyprint("log_p4: ", log_p.size())
+    happyprint("log_p max: ", log_p.max())
+    happyprint("log_p min: ", log_p.min())
     # target: (n*h*w,)
     mask = target >= 0
     target = target[mask]
+    # happyprint("check min max: ", target.max())
+    # happyprint("check min max: ", target.min())
+    # happyprint("identified target: ", target.size())
     loss = F.nll_loss(log_p, target, weight=weight, size_average=False)
+
+    
+    print(input.is_contiguous())
+    print(log_p.is_contiguous())
+    print(target.is_contiguous())
+    print(loss.is_contiguous())
+    print(weight)
+
     if size_average:
         loss /= mask.data.sum()
     return loss
+
+# def cross_entropy2d(input, target, weight=None, size_average=True):
+#     # input: (n, c, h, w), target: (n, h, w)
+#     n, c, h, w = input.size()
+#     # log_p: (n, c, h, w)
+#     log_p = F.log_softmax(input)
+#     # log_p: (n*h*w, c)
+#     # print(target.size()) # shape:1x376x1241x3
+#     # n:1 c:14 h: 376 w: 1241
+    
+#     log_p = log_p.transpose(1, 2).transpose(2, 3).contiguous().view(-1, c)
+#     log_p = log_p[target.view(n, h, w, 1).repeat(1, 1, 1, c) >= 0]
+#     log_p = log_p.view(-1, c)
+#     # target: (n*h*w,)
+#     mask = target >= 0
+#     target = target[mask]
+#     loss = F.nll_loss(log_p, target, weight=weight, size_average=False)
+#     if size_average:
+#         loss /= mask.data.sum()
+#     return loss
 
 
 class Trainer(object):
@@ -48,7 +99,7 @@ class Trainer(object):
         self.val_loader = val_loader
 
         self.timestamp_start = \
-            datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
+            datetime.datetime.now(pytz.timezone('US/Eastern'))
         self.size_average = size_average
 
         if interval_validate is None:
@@ -99,10 +150,16 @@ class Trainer(object):
             if self.cuda:
                 data, target = data.cuda(), target.cuda()
             data, target = Variable(data, volatile=True), Variable(target)
+            
+            print("data: ", data.size())
+            print("target: ", target.size())
             score = self.model(data)
+            print("score: ", score.size())
 
-            loss = cross_entropy2d(score, target,
+            loss = cross_entropy3d(score, target,
                                    size_average=self.size_average)
+            happyprint("loss in validation: ", loss)
+
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while validating')
             val_loss += float(loss.data[0]) / len(data)
@@ -114,24 +171,24 @@ class Trainer(object):
                 img, lt = self.val_loader.dataset.untransform(img, lt)
                 label_trues.append(lt)
                 label_preds.append(lp)
-                if len(visualizations) < 9:
-                    viz = fcn.utils.visualize_segmentation(
-                        lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class)
-                    visualizations.append(viz)
+                # if len(visualizations) < 9:
+                #     viz = fcn.utils.visualize_segmentation(
+                #         lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class)
+                #     visualizations.append(viz)
         metrics = torchfcn.utils.label_accuracy_score(
             label_trues, label_preds, n_class)
 
-        out = osp.join(self.out, 'visualization_viz')
-        if not osp.exists(out):
-            os.makedirs(out)
-        out_file = osp.join(out, 'iter%012d.jpg' % self.iteration)
-        scipy.misc.imsave(out_file, fcn.utils.get_tile_image(visualizations))
+        # out = osp.join(self.out, 'visualization_viz')
+        # if not osp.exists(out):
+        #     os.makedirs(out)
+        # out_file = osp.join(out, 'iter%012d.jpg' % self.iteration)
+        # scipy.misc.imsave(out_file, fcn.utils.get_tile_image(visualizations))
 
         val_loss /= len(self.val_loader)
 
         with open(osp.join(self.out, 'log.csv'), 'a') as f:
             elapsed_time = \
-                datetime.datetime.now(pytz.timezone('Asia/Tokyo')) - \
+                datetime.datetime.now(pytz.timezone('US/Eastern')) - \
                 self.timestamp_start
             log = [self.epoch, self.iteration] + [''] * 5 + \
                   [val_loss] + list(metrics) + [elapsed_time]
@@ -176,11 +233,13 @@ class Trainer(object):
             self.optim.zero_grad()
             score = self.model(data)
 
-            loss = cross_entropy2d(score, target,
+            loss = cross_entropy3d(score, target,
                                    size_average=self.size_average)
             loss /= len(data)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while training')
+
+            happyprint("train_loss: ", loss)
             loss.backward()
             self.optim.step()
 
@@ -196,7 +255,7 @@ class Trainer(object):
 
             with open(osp.join(self.out, 'log.csv'), 'a') as f:
                 elapsed_time = (
-                    datetime.datetime.now(pytz.timezone('Asia/Tokyo')) -
+                    datetime.datetime.now(pytz.timezone('US/Eastern')) -
                     self.timestamp_start).total_seconds()
                 log = [self.epoch, self.iteration] + [loss.data[0]] + \
                     metrics.tolist() + [''] * 5 + [elapsed_time]
@@ -207,6 +266,7 @@ class Trainer(object):
                 break
 
     def train(self):
+        # cudnn.benchmark = True
         max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))
         for epoch in tqdm.trange(self.epoch, max_epoch,
                                  desc='Train', ncols=80):

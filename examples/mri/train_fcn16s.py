@@ -5,7 +5,8 @@ import os
 import os.path as osp
 
 import torch
-
+import sys
+sys.path.append('../..')
 import torchfcn
 
 from train_fcn32s import get_log_dir
@@ -16,7 +17,7 @@ configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     1: dict(
-        max_iteration=100000,
+        max_iteration=100,
         lr=1.0e-12,
         momentum=0.99,
         weight_decay=0.0005,
@@ -50,20 +51,21 @@ def main():
         torch.cuda.manual_seed(1337)
 
     # 1. dataset
+    root = osp.expanduser('/media/zhi/Drive3/KITTI/rwth_kitti_semantics_dataset')
 
-    root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
+        torchfcn.datasets.KittiClassSeg(root, split='train', transform=True),
         batch_size=1, shuffle=True, **kwargs)
+
     val_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.VOC2011ClassSeg(
-            root, split='seg11valid', transform=True),
+        torchfcn.datasets.KittiClassSegValidate(
+            root, split='validation', transform=True),
         batch_size=1, shuffle=False, **kwargs)
 
     # 2. model
 
-    model = torchfcn.models.FCN16s(n_class=21)
+    model = torchfcn.models.FCN16s(n_class=14)
     start_epoch = 0
     start_iteration = 0
     if resume:
