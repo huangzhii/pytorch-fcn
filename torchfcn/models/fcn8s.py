@@ -6,7 +6,7 @@ import torch.nn as nn
 from .fcn32s import get_upsampling_weight
 
 def happyprint(string, obj):
-    print(string, obj)
+    # print(string, obj)
     return
 
 class FCN8s(nn.Module):
@@ -26,7 +26,7 @@ class FCN8s(nn.Module):
     def __init__(self, n_class=21):
         super(FCN8s, self).__init__()
         # conv1
-        self.conv1_1 = nn.Conv3d(1, 8, 3, padding=100)
+        self.conv1_1 = nn.Conv3d(1, 8, 3, padding=90)
         # torch.nn.Conv3d(in_channels, out_channels, kernel_size,
         # stride=1, padding=0, dilation=1, groups=1, bias=True)
         self.relu1_1 = nn.ReLU(inplace=True)

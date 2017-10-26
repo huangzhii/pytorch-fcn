@@ -18,7 +18,7 @@ configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     1: dict(
-        max_iteration=10000,
+        max_iteration=1000,
         lr=1.0e-10,
         momentum=0.99,
         weight_decay=0.0005,
@@ -57,11 +57,11 @@ def main():
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(
         torchfcn.datasets.MRIClassSeg(root, split='train', transform=True),
-        batch_size=1, shuffle=True, **kwargs)
+        batch_size=3, shuffle=True, **kwargs)
     val_loader = torch.utils.data.DataLoader(
         torchfcn.datasets.MRIClassSegValidate(
             root, split='validation', transform=True),
-        batch_size=1, shuffle=False, **kwargs)
+        batch_size=3, shuffle=False, **kwargs)
 
     # 2. model
 

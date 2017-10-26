@@ -18,7 +18,7 @@ import logging
 import torchfcn
 
 def happyprint(string, obj):
-    print(string, obj)
+    # print(string, obj)
     return
 
 def cross_entropy3d(input, target, weight=None, size_average=True):
@@ -54,12 +54,6 @@ def cross_entropy3d(input, target, weight=None, size_average=True):
     loss = F.nll_loss(log_p, target, weight=weight, size_average=False)
 
     
-    print(input.is_contiguous())
-    print(log_p.is_contiguous())
-    print(target.is_contiguous())
-    print(loss.is_contiguous())
-    print(weight)
-
     if size_average:
         loss /= mask.data.sum()
     return loss
@@ -151,10 +145,10 @@ class Trainer(object):
                 data, target = data.cuda(), target.cuda()
             data, target = Variable(data, volatile=True), Variable(target)
             
-            print("data: ", data.size())
-            print("target: ", target.size())
+            happyprint("data: ", data.size())
+            happyprint("target: ", target.size())
             score = self.model(data)
-            print("score: ", score.size())
+            happyprint("score: ", score.size())
 
             loss = cross_entropy3d(score, target,
                                    size_average=self.size_average)
